@@ -2,7 +2,8 @@ module Bayes where
 
 -- | Importing external modules/libraries
 import qualified Data.Map as M
-import qualified Data.Sequence as S    
+import qualified Data.Sequence as S
+import Data.List (foldl')    
 
 -- | Importing internal modules written for this project    
 import Types
@@ -19,7 +20,11 @@ bayes tables sentence = S.mapWithIndex tagWord sentence
                   c tag = condProb word tag (observe tables)
                   rate tag = (tag, c tag * gammFind tag gamma)
               in (word, bestTag (map rate tags))
-          buildGamm i gamma j word = undefined
+          buildGamm i gamma j wordj
+              | i > j  = foldl' (newGamm margCurr wordj) gamma tags
+              | i == j = gamma
+              | i < j  = foldl' (newGamm margNext wordj) gamma tags
+          newGamm marg wrd old t = M.insert t (marg tables old wrd t) old
 
 jointCurr :: Tables -> Gamma -> Word -> Tag -> Tag -> Prob
 jointCurr tables gamma word nextTag currTag =
