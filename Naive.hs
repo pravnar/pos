@@ -9,17 +9,16 @@ import qualified Data.Sequence as S
 import Types    
 
 naive :: Tables -> Sentence -> Mem Word TaggedSent
-naive tables sent = S.foldlWithIndex build initial sent
+naive tables sentence = S.foldlWithIndex build initial sentence
   where initial = return emptySent
-        build mem i word = do taggedsent <- mem
-                              tword <- tagged word i
-                              return $ extend taggedsent tword
+        build mem i word = do taggedSent <- mem
+                              taggedWord <- tagged word i
+                              return (extend taggedSent taggedWord)
         tagged word i = do
-          let others = S.splitAt i sent
-              bind mp w = mp >>= memProdMarg tables w
-          c <- unto others bind (return 1)
+          let otherWords = S.splitAt i sentence
+          c <- unto otherWords (productMarg tables) (return 1)
           let rate tag = (tag, c * joint tables word tag)
-          return (word, bestTag $ map rate tags)
+          return (word, bestTag (map rate tags))
 
 -- | p(Si, Wi) = p(Wi|Si) * p(Si)
 joint :: Tables -> Word -> Tag -> Prob
@@ -29,15 +28,15 @@ joint tables word tag = condProb word tag (observe tables)
 -- | Marginalize a word over all possible tags
 -- p(Wi) = \Sum_t p(Wi, Si=t)
 wordMarg :: Tables -> Word -> Prob
-wordMarg tables word = sum $ map (joint tables word) tags
+wordMarg tables word = sum (map (joint tables word) tags)
     
+-- | Compute memoized product of marginals
+-- q * P(Wi), where q is an accumulating product of probabilities
+productMarg :: Tables -> Mem Word Prob -> Word -> Mem Word Prob
+productMarg tables accum w = memProduct accum (memoize (wordMarg tables) w)
+
 -- | Here "best" means "most probable", given a list of (Tag, prob) pairs
 bestTag :: [(Tag, Prob)] -> Tag
 bestTag = fst . maximumBy higherProb
-    where higherProb (tag1,p1) (tag2,p2) = compare p1 p2               
+    where higherProb (tag1,p1) (tag2,p2) = compare p1 p2 
 
--- | Memoize the marginalization of a word, and compute product marginal
--- q * memoized p(Wi), where q is an accumulating product of probabilities
-memProdMarg :: Tables -> Word -> Prob -> Mem Word Prob
-memProdMarg tables word q = do p <- memoize (wordMarg tables) word
-                               return (q*p)
