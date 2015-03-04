@@ -8,15 +8,18 @@ import qualified Data.Sequence as S
 -- | Importing internal modules written for this project    
 import Types    
 
-naive :: Tables -> Sentence -> TaggedSent
-naive tables sent = S.foldlWithIndex build emptySent sent
-  where build taggedsent i word = extend taggedsent (tagged word i)
-        tagged word i =
-            let others = S.splitAt i sent
-                c = memCompute (unto others bind (return 1))
-                bind mp w = mp >>= memProdMarg tables w
-                rate tag = (tag, c * joint tables word tag)
-            in (word, bestTag $ map rate tags)
+naive :: Tables -> Sentence -> Mem Word TaggedSent
+naive tables sent = S.foldlWithIndex build initial sent
+  where initial = return emptySent
+        build mem i word = do taggedsent <- mem
+                              tword <- tagged word i
+                              return $ extend taggedsent tword
+        tagged word i = do
+          let others = S.splitAt i sent
+              bind mp w = mp >>= memProdMarg tables w
+          c <- unto others bind (return 1)
+          let rate tag = (tag, c * joint tables word tag)
+          return (word, bestTag $ map rate tags)
 
 -- | p(Si, Wi) = p(Wi|Si) * p(Si)
 joint :: Tables -> Word -> Tag -> Prob
