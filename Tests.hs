@@ -9,7 +9,8 @@ import qualified Data.Sequence as S
 -- | Importing internal modules written for this project
 import Types
 import Learning
-import Naive    
+import Naive
+import Bayes    
 
 t1 :: IO ()
 t1 = do

@@ -6,8 +6,8 @@ import qualified Data.Text as T -- ^ Efficient string representations
 import qualified Data.Sequence as S -- ^ For representing sentences
 import qualified Data.Foldable as F
 import qualified Control.Monad.Trans.State as St -- ^ State monad
-import qualified Control.Monad as CM    
 import Data.Maybe
+import Data.List (maximumBy)    
 
 -- | Enum type of POS tags    
 data Tag = ADJ | ADV  | ADP | CONJ
@@ -57,16 +57,13 @@ instance Show Word where
 
 parse :: String -> (Word, Tag)
 parse wordAndTag = (W $ T.pack word, read tag)
-    where [word, tag] = words wordAndTag
+    where [word, tag] = words wordAndTag                         
 
 -- | Defining a sentence as a sequence
 type Sent = S.Seq
 
 -- Helper functions on Sents
 --------------------------------------------------------------------------------
-sentmap :: (a -> b) -> Sent a -> S.Seq b
-sentmap = CM.fmap
-
 emptySent :: Sent a
 emptySent = S.empty
 
@@ -94,6 +91,11 @@ data Position = Start | Trans Tag
 
 -- | Defining probabilities as double-precision floating point numbers
 type Prob = Double
+
+-- | Here "best" means "most probable", given a list of (Tag, Prob) pairs
+bestTag :: [(Tag, Prob)] -> Tag
+bestTag = fst . maximumBy higherProb
+    where higherProb (tag1,p1) (tag2,p2) = compare p1 p2    
     
 -- | Defining probability tables
 -- The parameter "a" represents a generic type
@@ -129,8 +131,8 @@ incr2 key _ pt = increment key pt
 
 -- | Defining conditional probability tables
 type CPT a b = M.Map b (PT a)
--- | P(a|b)
 
+-- | P(a|b)
 condProb :: (Ord a, Ord b) => a -> b -> CPT a b -> Prob
 condProb a b cpt = prob a (M.findWithDefault emptyPT b cpt)
 
