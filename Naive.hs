@@ -8,7 +8,7 @@ import qualified Data.Sequence as S
 -- | Importing internal modules written for this project    
 import Types    
 
-naive :: Tables -> Sentence -> Mem Word TaggedSent
+naive :: Tables -> Sentence -> TaggedSent
 naive tables sent = S.foldlWithIndex build emptySent sent
   where build taggedsent i word = extend taggedsent (tagged word i)
         tagged word i =
@@ -38,21 +38,3 @@ bestTag = fst . maximumBy higherProb
 memProdMarg :: Tables -> Word -> Prob -> Mem Word Prob
 memProdMarg tables word q = do p <- memoize (wordMarg tables) word
                                return (q*p)
-
--- naiveOpt :: Tables -> Sentence -> TaggedSent
--- naiveOPt tables sent = fst $ F.foldl' build initial sent
---   where initial = (emptySent, (emptySent, sent))
---         build (tagsent, others) word = ( extend tagsent (tagged word others)
---                                        , shiftLeft others )
---         tagged word others = (word, bestTag $ map (rate word others) tags)
---         rate currWord others tag =
---             let bind mp w = mp >>= memProdMarg tables w
---                 c = memCompute (unto others bind (return 1))
---             in (tag, c * joint tables currWord tag)
-
--- shiftLeft :: (Sent a, Sent a) -> (Sent a, Sent a)
--- shiftLeft (left, rest) =
---     case S.viewl rest of
---       S.EmptyL -> (left, rest)
---       curr S.:< remaining -> (extend left curr, remaining)
-                
