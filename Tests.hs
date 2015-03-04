@@ -4,6 +4,7 @@ module Tests where
 import System.Environment
 import qualified Data.Map as M  -- ^ For maps / dictionaries
 import qualified Data.Text as T -- ^ Efficient string representations
+import qualified Data.Sequence as S
 
 -- | Importing internal modules written for this project
 import Types
@@ -49,3 +50,13 @@ t5 = do
 
 t6 :: IO ()
 t6 = print.bestTag $ [(NOUN,0.4), (DET,0.2), (ADJ,0.1), (ADV,0.1), (PRT,0.2)]
+
+t7 :: IO ()
+t7 = do
+  (trainFile : testFile : _) <- getArgs
+  training <- readFile trainFile
+  let tables = learn Start (lines training) emptyTables
+      makeTest = makeSent . map (W . T.pack)
+      test = makeTest ["The", "position", "covers", "tasks", "."]
+      result = memCompute (naive tables test)
+  print result

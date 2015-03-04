@@ -35,7 +35,7 @@ wordMarg tables word = sum (map (joint tables word) tags)
 productMarg :: Tables -> Mem Word Prob -> Word -> Mem Word Prob
 productMarg tables accum w = memProduct accum (memoize (wordMarg tables) w)
 
--- | Here "best" means "most probable", given a list of (Tag, prob) pairs
+-- | Here "best" means "most probable", given a list of (Tag, Prob) pairs
 bestTag :: [(Tag, Prob)] -> Tag
 bestTag = fst . maximumBy higherProb
     where higherProb (tag1,p1) (tag2,p2) = compare p1 p2 

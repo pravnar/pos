@@ -84,6 +84,9 @@ unto (before, rest) f init = F.foldl' f (F.foldl' f init before) after
 type Sentence = Sent Word
 type TaggedSent = Sent (Word, Tag)
 
+makeSent :: [Word] -> Sentence
+makeSent = S.fromList
+
 -- | A datatype that tells us whether we:
 -- 1. have started a new sentence, or
 -- 2. are in the middle of a sentence with the preceding tag in hand
@@ -126,8 +129,8 @@ incr2 key _ pt = increment key pt
 
 -- | Defining conditional probability tables
 type CPT a b = M.Map b (PT a)
-
 -- | P(a|b)
+
 condProb :: (Ord a, Ord b) => a -> b -> CPT a b -> Prob
 condProb a b cpt = prob a (M.findWithDefault emptyPT b cpt)
 
