@@ -179,8 +179,8 @@ memoize f a = do
 memCompute :: Mem a b c -> c
 memCompute m = St.evalState m emptyMemT
 
-memEvalWith :: MemTable a b -> Mem a b c -> c
-memEvalWith table m = St.evalState m table
+evalWith :: MemTable a b -> Mem a b c -> c
+evalWith table m = St.evalState m table
 
 -- | Compute the product of two memoized probability computations               
 memProduct :: Mem a b Prob -> Mem a b Prob -> Mem a b Prob
