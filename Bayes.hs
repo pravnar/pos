@@ -6,6 +6,7 @@ import qualified Data.Sequence as S
 import Data.List (foldl')
 import qualified Data.Foldable as F    
 import qualified Control.Monad.Trans.Reader as R
+import qualified Control.Monad.Trans.State as St -- ^ State monad
 
 -- | Importing internal modules written for this project    
 import Types
@@ -31,6 +32,9 @@ type Gamma = Gamm Prob
 --------------------------------------------------------------------------------    
 fromPT :: PT Tag -> Gamma
 fromPT pt = M.mapWithKey (\k _ -> prob k pt) (counts pt)
+
+fromStart :: Tables -> Gamma
+fromStart tables = fromPT (start tables)
 
 gammaFind :: Tag -> Gamma -> Prob
 gammaFind = M.findWithDefault 0
@@ -78,6 +82,40 @@ inferAdd infer1 infer2 = do
 
 type MemLeft a = Mem Int Gamma a
 
+initMemLeft :: Tables -> MemTable Int Gamma
+initMemLeft tables = M.singleton 0 (fromStart tables)
+    
+bayes2 :: Tables -> Sentence -> MemLeft TaggedSent
+bayes2 tables sentence = S.foldlWithIndex build initMem sentence
+    where initMem = return emptySent
+          build mem i word = do taggedSent <- mem
+                                taggedWord <- tagWord word i
+                                return (extend taggedSent taggedWord)
+          tagWord word i = do
+            gMap <- St.get
+            let prevGamm = M.findWithDefault (fromStart tables) (i-1) gMap
+                currGamm = newGamm tables prevGamm word
+            St.put (M.insert i currGamm gMap)
+            let initG2 = buildG2 tables word prevGamm
+                (_, right) = except i sentence
+                finalG2 = rightBuild tables initG2 right
+                probTag = retrieve finalG2
+                rate tag = (tag, infer probTag tag)
+            return (word, bestTag (map rate tags))
+{-
+
+1 looks up 0 <--- call this old
+  updates old with newGamm word1 <--- call this updatedGamm
+  inserts 1 updatedGamm; put this new map
+  uses old to do buildG2
+
+2 looks up 1 <--- call this old
+  updates old with newGamm word2 <--- call this updatedGamm
+  inserts 2 updatedGamm; put this new map
+  uses old to do buildG2
+
+-}                           
+
 bayes :: Tables -> Sentence -> TaggedSent
 bayes tables sentence = S.mapWithIndex tagWord sentence
     where tagWord i word = 
@@ -90,10 +128,12 @@ bayes tables sentence = S.mapWithIndex tagWord sentence
               in (word, bestTag (map rate tags))
 
 leftBuild :: Tables -> Sentence -> Gamma
-leftBuild tables left = F.foldl' newGamm startGamm left
+leftBuild tables left = F.foldl' (newGamm tables) startGamm left
     where startGamm = fromPT (start tables)
-          newGamm gamm word = foldl' (gamm' word) gamm tags
-          gamm' word old tag = M.insert tag (marg tables old word tag) old
+
+newGamm :: Tables -> Gamma -> Word -> Gamma
+newGamm tables oldGamm word = foldl' (update word) oldGamm tags
+    where update word old tag = M.insert tag (marg tables old word tag) old
 
 joint :: Tables -> Gamma -> Word -> Tag -> Tag -> Prob
 joint tables gamma word nextTag currTag =
