@@ -11,6 +11,26 @@ import Types
 
 type Gamma = MemTable Tag
 
+type Inference = R.Reader Tag Prob
+
+infer :: (Tag -> Prob) -> Inference
+infer = R.reader    
+
+inferProd :: Inference -> Inference -> Inference
+inferProd infer1 infer2 = do
+  p1 <- infer1
+  p2 <- infer2
+  return (p1*p2)
+
+inferScale :: Prob -> Inference -> Inference
+inferScale p1 = inferProd (return p1)
+
+inferAdd :: Inference -> Inference -> Inference
+inferAdd infer1 infer2 = do
+  p1 <- infer1
+  p2 <- infer2
+  return (p1+p2)
+         
 gammFind :: Tag -> Gamma -> Prob
 gammFind = M.findWithDefault 1
 
