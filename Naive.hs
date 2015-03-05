@@ -4,9 +4,15 @@ module Naive ( naive ) where
 import qualified Data.Sequence as S
 
 -- | Importing internal modules written for this project    
-import Types    
+import Types
 
-naive :: Tables -> Sentence -> Mem Word TaggedSent
+-- | Memoized computations that store (a -> Prob) tables
+type MemProb a c = Mem a Prob c
+
+-- As an example, MemoProb Word TaggedSent is a memoized
+-- computation that returns TaggedSent objects, and stores
+-- behind-the-scenes a Word -> Prob memotable
+naive :: Tables -> Sentence -> MemProb Word TaggedSent
 naive tables sentence = S.foldlWithIndex build initial sentence
   where initial = return emptySent
         build mem i word = do taggedSent <- mem
@@ -30,7 +36,7 @@ wordMarg tables word = sum (map (joint tables word) tags)
     
 -- | Compute memoized product of marginals
 -- q * P(Wi), where q is an accumulating product of probabilities
-productMarg :: Tables -> Mem Word Prob -> Word -> Mem Word Prob
+productMarg :: Tables -> MemProb Word Prob -> Word -> MemProb Word Prob
 productMarg tables accum w = memProduct accum (memoize (wordMarg tables) w)
 
 

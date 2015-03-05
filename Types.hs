@@ -149,22 +149,22 @@ data Tables = T { start      ::  PT Tag      -- ^ P ( S1 )
 emptyTables :: Tables
 emptyTables = T emptyPT M.empty M.empty emptyPT
 
--- | Defining memotables for storing computed probabilities
-type MemTable a = M.Map a Prob
+-- | Defining memotables for storing computed values
+type MemTable = M.Map
 
-emptyMemT :: MemTable a
+emptyMemT :: MemTable a b
 emptyMemT = M.empty
 
--- | Computations can have an associated memotable (a -> Prob)
--- The return type of the computation is b
+-- | Computations can have an associated memotable (a -> b)
+-- The return type of the computation is c
 -- Using the State monad to express this allows us to update and pass
 -- along memotables in an imperative style
-type Mem a b = St.State (MemTable a) b
+type Mem a b c = St.State (MemTable a b) c
 
 -- Helper functions on Mems        
 --------------------------------------------------------------------------------
--- | Memoizing functions that take one argument and return a probability
-memoize :: (Ord a) => (a -> Prob) -> a -> Mem a Prob
+-- | Memoizing functions that take one argument
+memoize :: (Ord a) => (a -> b) -> a -> Mem a b b
 memoize f a = do
   memo <- St.get {- the current memotable -}
   let val = M.lookup a memo
@@ -175,12 +175,12 @@ memoize f a = do
     St.put (M.insert a result memo) {- update memotable with new result -}
     return result {- return new result and updated memotable -}
 
--- | Evaluate a memoized computation; start with empty memotable
-memCompute :: Mem a b -> b
+-- | Evaluate a memoized computation, starting with empty memotable
+memCompute :: Mem a b c -> c
 memCompute m = St.evalState m emptyMemT
 
 -- | Compute the product of two memoized probability computations               
-memProduct :: Mem a Prob -> Mem a Prob -> Mem a Prob
+memProduct :: Mem a b Prob -> Mem a b Prob -> Mem a b Prob
 memProduct mp1 mp2 = do
   p1 <- mp1
   p2 <- mp2
