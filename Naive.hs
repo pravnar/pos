@@ -13,7 +13,7 @@ naive tables sentence = S.foldlWithIndex build initial sentence
                               taggedWord <- tagged word i
                               return (extend taggedSent taggedWord)
         tagged word i = do
-          let otherWords = S.splitAt i sentence
+          let otherWords = except i sentence
           c <- unto otherWords (productMarg tables) (return 1)
           let rate tag = (tag, c * joint tables word tag)
           return (word, bestTag (map rate tags))

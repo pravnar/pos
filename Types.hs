@@ -71,11 +71,15 @@ emptySent = S.empty
 extend :: Sent a -> a -> Sent a
 extend sent e = sent S.|> e
 
-unto :: (Sent b, Sent b) -> (a -> b -> a) -> a -> a
-unto (before, rest) f init = F.foldl' f (F.foldl' f init before) after
-    where after = case S.viewl rest of
+except :: Int -> Sent a -> (Sent a, Sent a)
+except i sent = (before, after)
+    where (before, rest) = S.splitAt i sent
+          after = case S.viewl rest of
                     S.EmptyL -> rest
                     curr S.:< remaining -> remaining
+
+unto :: (Sent b, Sent b) -> (a -> b -> a) -> a -> a
+unto (before, after) f init = F.foldl' f (F.foldl' f init before) after
 --------------------------------------------------------------------------------
 
 type Sentence = Sent Word
