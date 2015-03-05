@@ -1,4 +1,4 @@
-module Naive where
+module Naive ( naive ) where
 
 -- | Importing external modules/libraries
 import qualified Data.Sequence as S

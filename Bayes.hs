@@ -1,9 +1,10 @@
-module Bayes where
+module Bayes ( bayes ) where
 
 -- | Importing external modules/libraries
 import qualified Data.Map as M
 import qualified Data.Sequence as S
-import Data.List (foldl')    
+import Data.List (foldl')
+import qualified Control.Monad.Trans.Reader as R
 
 -- | Importing internal modules written for this project    
 import Types
@@ -46,3 +47,5 @@ margNext :: Tables -> Gamma -> Word -> Tag -> Prob
 margNext tables gamma word currTag = sum (map joint tags)
     where joint = jointNext tables gamma word currTag
    
+-- Shouldn't j == 0 be calling start tables somewhere?
+-- Perhaps init gamma should be equal to start

@@ -61,3 +61,13 @@ t7 = do
       test = makeTest ["The", "position", "covers", "tasks", "."]
       result = memCompute (naive tables test)
   print result
+
+t8 :: IO ()
+t8 = do
+  (trainFile : testFile : _) <- getArgs
+  training <- readFile trainFile
+  let tables = learn Start (lines training) emptyTables
+      makeTest = makeSent . map (W . T.pack)
+      test = makeTest ["The", "position", "covers", "tasks", "."]
+      result = bayes tables test
+  print result
