@@ -24,6 +24,7 @@ close :: a -> Gamm a
 close a = M.singleton dummyTag a
 --------------------------------------------------------------------------------
 
+-- | A Tag -> Prob memotable
 type Gamma = Gamm Prob    
 
 -- Helper functions on Gammas
@@ -34,9 +35,18 @@ fromPT pt = M.mapWithKey (\k _ -> prob k pt) (counts pt)
 gammaFind :: Tag -> Gamma -> Prob
 gammaFind = M.findWithDefault 0
 --------------------------------------------------------------------------------
-            
+
+-- | An inference is a probabilistic computation that first requires a tag
+-- It is a Tag -> Prob function
+
+-- This is used to encode the various parts of our equation that require
+-- the same tag, i.e., the state Si = s over which we are doing arg max
+
+-- The Reader monad allows us to write computations that all depend on a state,
+-- and then pass the *same state* to all those computations eventually
 type Inference = R.Reader Tag Prob
-    
+   
+-- | A Tag -> Inference memotable
 type Gamma2 = Gamm Inference
 
 -- Helper functions on Inferences
@@ -64,8 +74,10 @@ inferAdd infer1 infer2 = do
   p1 <- infer1
   p2 <- infer2
   return (p1+p2)
---------------------------------------------------------------------------------        
-         
+--------------------------------------------------------------------------------
+
+type MemLeft a = Mem Int Gamma a
+
 bayes :: Tables -> Sentence -> TaggedSent
 bayes tables sentence = S.mapWithIndex tagWord sentence
     where tagWord i word = 
