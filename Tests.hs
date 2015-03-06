@@ -10,7 +10,8 @@ import qualified Data.Sequence as S
 import Types
 import Learning
 import Naive
-import Bayes    
+import Bayes
+import Sampling    
 
 t1 :: IO ()
 t1 = do
@@ -74,8 +75,8 @@ t8 = do
       makeTest = makeSent . map (W . T.pack)
       test = makeTest ["The", "position", "covers", "tasks", "."]
       test2 = makeTest ["If", "the", "covers", "were", "no", "problem", "."]      
-      result = bayes tables test
-      r2 = bayes tables test2
+  result <- bayes tables test
+  r2 <- bayes tables test2
   print $ "Size of marginal:" ++ show (total (marginal tables))
   print result
   print r2

@@ -36,15 +36,15 @@ type FBTable = MemTable Int Gamma
 data FB = FB { forTable :: FBTable
              , backTable :: FBTable }
 
-type MemoFB a = St.State FB a
+type MemoFB a = St.StateT FB IO a
 
 newFB :: Tables -> FB
 newFB tables = FB (M.singleton 0 (fromStart tables)) emptyMemT
 
-eval :: Tables -> MemoFB a -> a
-eval tables m = St.evalState m (newFB tables)
+eval :: Tables -> MemoFB a -> IO a
+eval tables m = St.evalStateT m (newFB tables)
 
-bayes :: Tables -> Sentence -> TaggedSent
+bayes :: Tables -> Sentence -> IO TaggedSent
 bayes tables sentence = eval tables memoTag
     where memoTag = S.foldlWithIndex build (return emptySent) sentence
           build mem i word = do taggedSent <- mem

@@ -80,6 +80,12 @@ except i sent = (before, after)
 
 unto :: (Sent b, Sent b) -> (a -> b -> a) -> a -> a
 unto (before, after) f init = F.foldl' f (F.foldl' f init before) after
+
+-- | Assume non empty sentence                              
+getLast :: Sent a -> a
+getLast sentence = case S.viewr sentence of
+                     S.EmptyR -> error "Assumed non empty sentence in getPrev"
+                     (_ S.:> last) -> last
 --------------------------------------------------------------------------------
 
 type Sentence = Sent Word

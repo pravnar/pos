@@ -1,20 +1,121 @@
 module Sampling where
 
+-- | Importing external modules/libraries
+import qualified Data.Map as M
+import qualified Data.Sequence as S
+import qualified System.Random.MWC as MWC
+import Data.List (maximumBy)
+import Data.Ord
+import qualified Control.Monad as CM
+import qualified Control.Monad.Trans.State as St
+import Control.Monad.Trans.Class (lift)
+    
 -- | Importing internal modules written for this project        
 import Types
 import Bayes
 
-categorical = undefined
+sampling :: Tables -> Sentence -> Rand -> IO TaggedSent
+sampling tables sentence rand = CM.liftM snd (eval tables memoTag)
+    where memoTag = S.foldlWithIndex build initMem sentence
+          initMem = return (Start, emptySent)
+          build mem i word = do (pos, tSent) <- mem
+                                (pos', tWord) <- tagWord word i pos
+                                return (pos', extend tSent tWord)
+          tagWord word i pos = do
+            let (left,right) = except i sentence
+            forGamma <- forPart left word i pos
+            backGamma <- checkFirst (backward tables right) i
+            let rate t = (t, gammaFind t backGamma * gammaFind t forGamma)
+                ratedTags = map rate tags
+            drawnTag <- lift (sampleFrom (categoricalNormed ratedTags) rand)
+            return (Trans drawnTag, (word, drawnTag))
+          forPart left word i pos =
+              case pos of
+                Start -> forward tables word i
+                Trans prevTag -> do
+                         let prevWord = getLast left
+                         gamma <- forward tables word (i-1)
+                         return (allTags
+                                 (\_ -> M.foldWithKey
+                                        (forAdd tables prevWord prevTag)
+                                        0 gamma))
+                            
+-- Functions for defining categorical distributions
+--------------------------------------------------------------------------------    
 
-sampleFrom = undefined
+-- | An even shorter name for PRNGs in the 'IO' monad.
+type Rand = MWC.GenIO
 
+-- | The probability density function used in both target and proposal distributions.
+-- Given an input point, this method returns a probability density. 
+type Density a = a -> Double    
 
+-- | A procedure that, given a source of randomness, returns an action that 
+-- produces a sample. The type itself is read as a verb, i.e, "to sample".
+type Sample a = Rand -> IO a    
 
-{-
+data Dist a = D (Density a) (Sample a)
 
-instead of looking up i in storeGamma we might have to look
-up (i-1), for the prev word, and then only do joint on the 
-given tag from (Trans tag), and /then/ do the things with
-currGamm etc that storeGamma does
+-- Uniform -- 
 
--}             
+-- Univariate            
+
+-- | Univariate uniform distribution over real numbers. The parameters should 
+-- not be equal. 
+uniform :: (MWC.Variate a, Real a) => a -> a -> Dist a
+uniform a b
+    | b < a = makeUniform b a
+    | a < b = makeUniform a b
+    | otherwise = error "Wrong parameters for Uniform distribution"
+
+unif1D :: Real a => a -> a -> a -> Double
+unif1D a b x
+    | x < a = 0
+    | x > b = 0
+    | otherwise = 1 / realToFrac (b - a)
+
+makeUniform :: (MWC.Variate a, Real a) => a -> a -> Dist a
+makeUniform a b = D (unif1D a b) (MWC.uniformR (a,b))
+
+-- Categorical --
+
+-- | Categorical distribution over instances of the Eq typeclass.
+-- The input argument is a list of category-proportion pairs. 
+-- 
+-- The input proportions represent relative weights and are not 
+-- required to be normalized.
+
+categorical :: Eq a => [(a, Double)] -> Dist a
+categorical = categoricalNormed . normalize
+
+-- | Normalize the weights in a list of category-weight pairs.
+normalize :: [(a, Double)] -> [(a, Double)]
+normalize catProbs = map norm catProbs
+    where norm = second (flip (/) s)
+          s = foldl (+) 0 $ (snd.unzip) catProbs
+
+-- | Assume that the weights are already normalized. This is useful
+-- as an optimized version of @categorical@.
+categoricalNormed :: Eq a => [(a,Double)] -> Dist a
+categoricalNormed catProbs =
+    -- CHECK: Should fromMaybe default to "error" instead of 0?
+    let dens a = sum [ p | (b,p) <- catProbs, a == b ]
+    in D dens (categoricalSF catProbs)
+
+categoricalSF :: [(a, Double)] -> Sample a
+categoricalSF catProbs g = do
+  u <- sampleFrom (uniform 0 1) g
+  let (cats, probs) = unzip catProbs
+      catsCDF = zip cats $ init $ scanl (+) 0 probs
+  return $ fst $ maximumBy (comparing snd) $ filter ((u>=).snd) catsCDF              
+
+-- | This function can be used to call the sampling method of a distribution.
+sampleFrom :: Dist a -> Sample a
+sampleFrom (D _ s) = s
+
+first  :: (a -> a') -> ((a,b) -> (a',b))
+second :: (b -> b') -> ((a,b) -> (a,b'))
+          
+first  f = \ (a,b) -> (f a, b)
+second g = \ (a,b) -> (a, g b)                     
+     
