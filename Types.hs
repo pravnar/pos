@@ -175,6 +175,12 @@ memoize f a = do
     St.put (M.insert a result memo) {- update memotable with new result -}
     return result {- return new result and updated memotable -}
 
+checkFirst :: (Ord a) => (a -> Mem a b b) -> a -> Mem a b b
+checkFirst f a = do
+  memo <- St.get
+  let val = M.lookup a memo
+  if isJust val then return (fromJust val) else f a
+
 -- | Evaluate a memoized computation, starting with empty memotable
 memCompute :: Mem a b c -> c
 memCompute m = St.evalState m emptyMemT

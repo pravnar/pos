@@ -136,3 +136,24 @@ rightBuild tables initG2 right = S.foldlWithIndex (go rlen) initG2 right
                     interm nxt cur inf =
                         inferAdd (inferScale (wrdProb cur * trns nxt cur) inf)
                     trns next curr = condProb next curr (transition tables)
+
+backwards :: Tables -> Sentence -> Int -> Mem Int Gamma Gamma
+backwards tables sentence i = do
+  let (_, right) = except i sentence
+      initG = allTags (const 1)
+      build j word mem = do
+        backGamms <- St.get
+        gamma <- mem
+        St.put (M.insert (i+j+1) gamma backGamms)
+        let newBack = allTags
+                      (\lower -> M.foldWithKey
+                                 (backAdd tables word lower) 0 gamma)
+        return newBack
+  S.foldrWithIndex build (return initG) right
+
+backAdd :: Tables -> Word -> Tag -> Tag -> Prob -> Prob -> Prob
+backAdd tables word lower curr value total = total + value * backJoint
+    where backJoint = condProb word curr (observe tables) *
+                      condProb curr lower (transition tables)
+   
+    
