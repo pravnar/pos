@@ -1,37 +1,26 @@
-module Bayes ( bayes ) where
+module Bayes where
 
 -- | Importing external modules/libraries
 import qualified Data.Map as M
 import qualified Data.Sequence as S
 import Data.List (foldl')
 import qualified Data.Foldable as F    
-import qualified Control.Monad.Trans.Reader as R
 import qualified Control.Monad.Trans.State as St -- ^ State monad
 import qualified Data.Maybe as MB
-import qualified Control.Monad as CM
 
 -- | Importing internal modules written for this project    
 import Types
 
-type Gamm a = MemTable Tag a
-
--- Helper functions on Gamms
---------------------------------------------------------------------------------    
-allTags :: (Tag -> a) -> Gamm a
-allTags f = foldl' (\g t -> M.insert t (f t) g) M.empty tags
-
-dummyTag :: Tag
-dummyTag = PUNC
-            
-close :: a -> Gamm a
-close a = M.singleton dummyTag a
---------------------------------------------------------------------------------
-
--- | A Tag -> Prob memotable
-type Gamma = Gamm Prob    
+type Gamma = MemTable Tag Prob
 
 -- Helper functions on Gammas
 --------------------------------------------------------------------------------    
+emptyGamma :: Gamma
+emptyGamma = emptyMemT
+
+allTags :: (Tag -> Prob) -> Gamma
+allTags f = foldl' (\g t -> M.insert t (f t) g) M.empty tags
+    
 fromPT :: PT Tag -> Gamma
 fromPT pt = M.mapWithKey (\k _ -> prob k pt) (counts pt)
 
@@ -42,118 +31,72 @@ gammaFind :: Tag -> Gamma -> Prob
 gammaFind = M.findWithDefault 0
 --------------------------------------------------------------------------------
 
--- | An inference is a probabilistic computation that first requires a tag
--- It is a Tag -> Prob function
+type FBTable = MemTable Int Gamma
+                                     
+data FB = FB { forTable :: FBTable
+             , backTable :: FBTable }
 
--- This is used to encode the various parts of our equation that require
--- the same tag, i.e., the state Si = s over which we are doing arg max
+type MemoFB a = St.State FB a
 
--- The Reader monad allows us to write computations that all depend on a state,
--- and then pass the *same state* to all those computations eventually
-type Inference = R.Reader Tag Prob
-   
--- | A Tag -> Inference memotable
-type Gamma2 = Gamm Inference
+newFB :: Tables -> FB
+newFB tables = FB (M.singleton 0 (fromStart tables)) emptyMemT
 
--- Helper functions on Inferences
---------------------------------------------------------------------------------    
-retrieve :: Gamma2 -> Inference
-retrieve = M.findWithDefault (return 0) dummyTag
+eval :: Tables -> MemoFB a -> a
+eval tables m = St.evalState m (newFB tables)
 
-makeInference :: (Tag -> Prob) -> Inference
-makeInference = R.reader
-
-infer :: Inference -> Tag -> Prob
-infer = R.runReader
-
-inferProd :: Inference -> Inference -> Inference
-inferProd infer1 infer2 = do
-  p1 <- infer1
-  p2 <- infer2
-  return (p1*p2)
-
-inferScale :: Prob -> Inference -> Inference
-inferScale p1 = inferProd (return p1)
-
-inferAdd :: Inference -> Inference -> Inference
-inferAdd infer1 infer2 = do
-  p1 <- infer1
-  p2 <- infer2
-  return (p1+p2)
---------------------------------------------------------------------------------
-    
 bayes :: Tables -> Sentence -> TaggedSent
-bayes tables sentence = evalWith initMem memoTag
-    where initMem = M.singleton 0 (fromStart tables)
-          memoTag = S.foldlWithIndex build (return emptySent) sentence
+bayes tables sentence = eval tables memoTag
+    where memoTag = S.foldlWithIndex build (return emptySent) sentence
           build mem i word = do taggedSent <- mem
                                 taggedWord <- tagWord word i
                                 return (extend taggedSent taggedWord)
           tagWord word i = do
-            prevGamm <- storeGamma (S.length sentence) i tables word
-            let initG2 = buildG2 tables word prevGamm
-                (_, right) = except i sentence
-                finalG2 = rightBuild tables initG2 right
-                probTag = retrieve finalG2
-                rate tag = (tag, infer probTag tag)
+            let (_,right) = except i sentence
+            forGamma <- forward tables word i
+            backGamma <- checkFirst (backward tables right) i
+            let rate t = (t, gammaFind t backGamma * gammaFind t forGamma)
             return (word, bestTag (map rate tags))
-
-storeGamma :: Int -> Int -> Tables -> Word -> Mem Int Gamma Gamma
-storeGamma len i tables word = do
-  gMap <- St.get
-  let prevGamm = MB.fromJust $ M.lookup i gMap
-      currGamm = newGamm tables prevGamm word
-  CM.when (i < len-1) $ St.put (M.insert (i+1) currGamm gMap)
-  return prevGamm
-
-newGamm :: Tables -> Gamma -> Word -> Gamma
-newGamm tables oldGamm word = foldl' (update word) oldGamm tags
-    where update word old tag = M.insert tag (marg tables old word tag) old
-
-joint :: Tables -> Gamma -> Word -> Tag -> Tag -> Prob
-joint tables gamma word nextTag currTag =
-    condProb word currTag (observe tables) *
-    condProb nextTag currTag (transition tables) *
-    gammaFind currTag gamma
-
-marg :: Tables -> Gamma -> Word -> Tag -> Prob
-marg tables gamma word nextTag = sum (map join tags)
-    where join = joint tables gamma word nextTag
-
-buildG2 :: Tables -> Word -> Gamma -> Gamma2
-buildG2 tables word gamma = allTags (\t -> makeInference $
-                                     \s -> joint tables gamma word t s)
-
-rightBuild :: Tables -> Gamma2 -> Sentence -> Gamma2
-rightBuild tables initG2 right = S.foldlWithIndex (go rlen) initG2 right
-    where rlen = S.length right
-          go last g2 i wrd
-              | i == last = close (inferSum final)
-              | otherwise = allTags (\next -> inferSum (interm next))
-              where inferSum addF = M.foldWithKey addF (return 0) g2
-                    final curr inf = inferAdd (inferScale (wrdProb curr) inf)
-                    wrdProb curr = condProb wrd curr (observe tables)
-                    interm nxt cur inf =
-                        inferAdd (inferScale (wrdProb cur * trns nxt cur) inf)
-                    trns next curr = condProb next curr (transition tables)
-
-backwards :: Tables -> Sentence -> Int -> Mem Int Gamma Gamma
-backwards tables sentence i = do
-  let (_, right) = except i sentence
-      initG = allTags (const 1)
+                                     
+backward :: Tables -> Sentence -> Int -> MemoFB Gamma
+backward tables right i = do
+  let initG = allTags (const 1)
       build j word mem = do
-        backGamms <- St.get
+        fbTables <- St.get
         gamma <- mem
-        St.put (M.insert (i+j+1) gamma backGamms)
-        let newBack = allTags
-                      (\lower -> M.foldWithKey
-                                 (backAdd tables word lower) 0 gamma)
-        return newBack
+        let backGamms  = backTable fbTables
+            backGamms' = M.insert (i+j+1) gamma backGamms
+            gamma' = allTags
+                     (\lower -> M.foldWithKey
+                                (backAdd tables word lower) 0 gamma)
+        St.put (fbTables {backTable = backGamms'})
+        return gamma'
   S.foldrWithIndex build (return initG) right
 
 backAdd :: Tables -> Word -> Tag -> Tag -> Prob -> Prob -> Prob
 backAdd tables word lower curr value total = total + value * backJoint
     where backJoint = condProb word curr (observe tables) *
                       condProb curr lower (transition tables)
-   
-    
+
+checkFirst :: (Int -> MemoFB Gamma) -> Int -> MemoFB Gamma
+checkFirst f i = do
+  fbTables <- St.get
+  let val = M.lookup i (backTable fbTables)
+  if MB.isJust val then return (MB.fromJust val) else f i
+     
+forward :: Tables -> Word -> Int -> MemoFB Gamma
+forward tables word i = do
+  fbTables <- St.get
+  let forGamms = forTable fbTables
+      gamma = MB.fromJust $ M.lookup i forGamms
+      forNew = allTags
+               (\higher -> M.foldWithKey
+                           (forAdd tables word higher) 0 gamma)
+      forGamms' = M.insert (i+1) forNew forGamms
+  St.put (fbTables {forTable = forGamms'})
+  return forNew
+
+forAdd :: Tables -> Word -> Tag -> Tag -> Prob -> Prob -> Prob
+forAdd tables word higher curr value total = total + value * forJoint
+    where forJoint = condProb word curr (observe tables) *
+                     condProb higher curr (transition tables)
+                              

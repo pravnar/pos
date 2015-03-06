@@ -8,6 +8,8 @@ categorical = undefined
 
 sampleFrom = undefined
 
+
+
 {-
 
 instead of looking up i in storeGamma we might have to look
