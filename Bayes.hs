@@ -54,8 +54,8 @@ bayes tables sentence = eval tables memoTag
             let (_,right) = except i sentence
             forGamma <- forward tables word i
             backGamma <- checkFirst (backward tables right) i
-            let rate t = (t, gammaFind t backGamma * gammaFind t forGamma)
-            return (word, bestTag (map rate tags))
+            let ratedTags = getRatedTags tables forGamma backGamma word
+            return (word, bestTag ratedTags)
                                      
 backward :: Tables -> Sentence -> Int -> MemoFB Gamma
 backward tables right i = do
@@ -99,4 +99,11 @@ forAdd :: Tables -> Word -> Tag -> Tag -> Prob -> Prob -> Prob
 forAdd tables word higher curr value total = total + value * forJoint
     where forJoint = condProb word curr (observe tables) *
                      condProb higher curr (transition tables)
+
+getRatedTags :: Tables -> Gamma -> Gamma -> Word -> [(Tag, Prob)]
+getRatedTags tables forGamma backGamma word =
+    let pWord tag = condProb word tag (observe tables)
+        forBack tag = gammaFind tag backGamma * gammaFind tag forGamma
+        rate tag = (tag, pWord tag * forBack tag)
+    in map rate tags
                               

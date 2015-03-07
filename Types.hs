@@ -182,8 +182,8 @@ memoize f a = do
     return result {- return new result and updated memotable -}
 
 -- | Evaluate a memoized computation, starting with empty memotable
-memCompute :: Mem a b c -> c
-memCompute m = St.evalState m emptyMemT
+memRun :: Mem a b c -> MemTable a b -> (c, MemTable a b)
+memRun m table = St.runState m table
 
 -- | Compute the product of two memoized probability computations               
 memProduct :: Mem a b Prob -> Mem a b Prob -> Mem a b Prob

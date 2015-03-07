@@ -25,20 +25,20 @@ sampling tables sentence rand = CM.liftM snd (eval tables memoTag)
             let (left,right) = except i sentence
             forGamma <- forPart left word i pos
             backGamma <- checkFirst (backward tables right) i
-            let rate t = (t, gammaFind t backGamma * gammaFind t forGamma)
-                ratedTags = map rate tags
-            drawnTag <- lift (sampleFrom (categoricalNormed ratedTags) rand)
+            let ratedTags = getRatedTags tables forGamma backGamma word
+            -- drawnTag <- lift (sampleFrom (categoricalNormed ratedTags) rand)
+                drawnTag = bestTag ratedTags
             return (Trans drawnTag, (word, drawnTag))
           forPart left word i pos =
               case pos of
                 Start -> forward tables word i
-                Trans prevTag -> do
-                         let prevWord = getLast left
+                Trans preTag -> do
                          gamma <- forward tables word (i-1)
+                         let preWord = getLast left
+                             preVal = M.findWithDefault 0 preTag gamma
                          return (allTags
-                                 (\_ -> M.foldWithKey
-                                        (forAdd tables prevWord prevTag)
-                                        0 gamma))
+                                 (\tag ->
+                                  forAdd tables preWord tag preTag preVal 0))
                             
 -- Functions for defining categorical distributions
 --------------------------------------------------------------------------------    

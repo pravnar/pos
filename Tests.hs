@@ -5,7 +5,8 @@ import System.Environment
 import qualified Data.Map as M  -- ^ For maps / dictionaries
 import qualified Data.Text as T -- ^ Efficient string representations
 import qualified Data.Sequence as S
-
+import qualified System.Random.MWC as MWC
+    
 -- | Importing internal modules written for this project
 import Types
 import Learning
@@ -60,9 +61,9 @@ t7 = do
   let tables = learn Start (lines training) emptyTables
       makeTest = makeSent . map (W . T.pack)
       test = makeTest ["The", "position", "covers", "tasks", "."]
-      result = memCompute (naive tables test)
       test2 = makeTest ["If", "the", "covers", "were", "no", "problem", "."]
-      r2 = memCompute (naive tables test2)
+      (result, t1) = memRun (naive tables test) emptyMemT
+      (r2, _) = memRun (naive tables test2) t1
   print $ "Size of marginal:" ++ show (total (marginal tables))
   print result
   print r2
@@ -80,3 +81,20 @@ t8 = do
   print $ "Size of marginal:" ++ show (total (marginal tables))
   print result
   print r2
+
+t9 :: IO ()
+t9 = do
+  (trainFile : testFile : _) <- getArgs
+  training <- readFile trainFile
+  let tables = learn Start (lines training) emptyTables
+      makeTest = makeSent . map (W . T.pack)
+      test = makeTest ["The", "position", "covers", "tasks", "."]
+      test2 = makeTest ["If", "the", "covers", "were", "no", "problem", "."]
+  g <- MWC.createSystemRandom
+  result <- sampling tables test g
+  r2 <- sampling tables test2 g
+  print $ "Size of marginal:" ++ show (total (marginal tables))
+  print result
+  print r2
+
+        
