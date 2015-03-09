@@ -6,7 +6,8 @@ import qualified System.Random.MWC as MWC
 import qualified Data.Foldable as F
 import qualified Data.Sequence as S
 import qualified Control.Monad as C
-import Data.List (maximumBy)    
+import Data.List (maximumBy)
+import Data.Ord    
 
 -- | Importing internal modules written for this project
 import Types 
@@ -24,16 +25,16 @@ main = do
   let tables = learn Start (lines training) emptyTables
       testlines = lines testing  
 
-  naiveStats <- step2 tables testlines
+  -- naiveStats <- step2 tables testlines
 
-  putNewLine
-  putStrLn "PERFORMANCE SUMMARY"
-  putStrLn $ "Total words: " ++ show (numwords naiveStats) ++
-               " sentences: " ++ show (numsents naiveStats)
-  display "Part 2, Naive Graphical Model" naiveStats
+  -- putNewLine
+  -- putStrLn "PERFORMANCE SUMMARY"
+  -- putStrLn $ "Total words: " ++ show (numwords naiveStats) ++
+  --              " sentences: " ++ show (numsents naiveStats)
+  -- display "Part 2, Naive Graphical Model" naiveStats
 
-  bayesStats <- step3 tables testlines
-  display "Part 3, Bayes net" bayesStats
+  -- bayesStats <- step3 tables testlines
+  -- display "Part 3, Bayes net" bayesStats
 
   sampleStats <- step4 tables testlines
   display "Part 4, Sampling" sampleStats
@@ -69,7 +70,7 @@ numRight :: [Tag] -> [Tag] -> Int
 numRight answers guesses = length (filter isRight (zip answers guesses))
 
 isRight :: (Tag, Tag) -> Bool
-isRight (answer, guess) = guess == answer
+isRight (answer, guess) = answer == guess
 
 -- | Get ratios from total counts                      
 compute :: Stats -> (Double, Double)
@@ -120,6 +121,8 @@ step3 tables testfile = go testfile emptySent [] emptyStats
               = if null wordAndTag
                 then do
                   tagged <- bayes tables sentence
+                  putStrLn $ "tagged: " ++ show tagged
+                  putStrLn $ "answers: " ++ show (reverse answers)
                   go rest emptySent [] (newStats stats answers tagged)
                 else do
                   let (word,tag) = parse wordAndTag
@@ -133,7 +136,9 @@ step4 tables testfile = MWC.createSystemRandom >>=
               = if null wordAndTag
                 then do
                   tSents <- C.replicateM 5 (sampling tables sentence rand)
-                  let bestSent = head tSents -- bestSample tSents answers
+                  -- putStrLn $ "samples: " ++ show tSents
+                  -- putStrLn $ "answers: " ++ show (reverse answers)
+                  let bestSent = bestSample tSents answers
                   -- print bestSent
                   -- print (reverse answers)
                   go rest emptySent [] (newStats stats answers bestSent) rand
@@ -147,6 +152,6 @@ bestSample taggedSents revanswers = byWords bySent
     where answers = reverse answers
           checkEqual sent = (getGuesses sent) == answers
           completely = filter checkEqual taggedSents
-          bySent = if null completely then taggedSents else completely
+          bySent = taggedSents -- if null completely then taggedSents else completely
           nRight sent = numRight answers (getGuesses sent)
-          byWords = maximumBy (\s1 s2 -> compare (nRight s1) (nRight s2))
+          byWords = head -- maximumBy (comparing nRight)

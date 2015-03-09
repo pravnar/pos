@@ -7,7 +7,9 @@ import qualified Data.Sequence as S -- ^ For representing sentences
 import qualified Data.Foldable as F
 import qualified Control.Monad.Trans.State as St -- ^ State monad
 import Data.Maybe
-import Data.List (maximumBy)    
+import Data.List (maximumBy)
+import Data.Ord
+import qualified Data.Number.LogFloat as LF -- ^ For log probabilities
 
 -- | Enum type of POS tags    
 data Tag = ADJ | ADV  | ADP | CONJ
@@ -100,12 +102,12 @@ makeSent = S.fromList
 data Position = Start | Trans Tag
 
 -- | Defining probabilities as double-precision floating point numbers
-type Prob = Double
+-- in the log-domain
+type Prob = LF.LogFloat
 
 -- | Here "best" means "most probable", given a list of (Tag, Prob) pairs
 bestTag :: [(Tag, Prob)] -> Tag
-bestTag = fst . maximumBy higherProb
-    where higherProb (tag1,p1) (tag2,p2) = compare p1 p2    
+bestTag = fst . maximumBy (comparing snd)
     
 -- | Defining probability tables
 -- The parameter "a" represents a generic type
@@ -130,8 +132,8 @@ singleton key = increment key emptyPT
 -- | To get the probability of an object, lookup its count value in the map
 -- and divide it by the total counts
 prob :: (Ord a) => a -> PT a -> Prob
-prob key pt = if val == 0 then 0
-              else fromIntegral val / fromIntegral (total pt)
+prob key pt = if val == 0 then LF.logFloat 0
+              else LF.logFloat (fromIntegral val / fromIntegral (total pt))
     where val = M.findWithDefault 0 key (counts pt)
 
 -- | Ignore the first PT and increment (i.e., update) the second one

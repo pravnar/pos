@@ -2,6 +2,7 @@ module Naive ( naive ) where
 
 -- | Importing external modules/libraries
 import qualified Data.Sequence as S
+import qualified Data.Number.LogFloat as LF
 
 -- | Importing internal modules written for this project    
 import Types
@@ -32,7 +33,7 @@ joint tables word tag = condProb word tag (observe tables)
 -- | Marginalize a word over all possible tags
 -- p(Wi) = \Sum_t p(Wi, Si=t)
 wordMarg :: Tables -> Word -> Prob
-wordMarg tables word = sum (map (joint tables word) tags)
+wordMarg tables word = LF.sum (map (joint tables word) tags)
     
 -- | Compute memoized product of marginals
 -- q * P(Wi), where q is an accumulating product of probabilities
