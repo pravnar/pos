@@ -25,16 +25,16 @@ main = do
   let tables = learn Start (lines training) emptyTables
       testlines = lines testing  
 
-  -- naiveStats <- step2 tables testlines
+  naiveStats <- step2 tables testlines
 
-  -- putNewLine
-  -- putStrLn "PERFORMANCE SUMMARY"
-  -- putStrLn $ "Total words: " ++ show (numwords naiveStats) ++
-  --              " sentences: " ++ show (numsents naiveStats)
-  -- display "Part 2, Naive Graphical Model" naiveStats
+  putNewLine
+  putStrLn "PERFORMANCE SUMMARY"
+  putStrLn $ "Total words: " ++ show (numwords naiveStats) ++
+               " sentences: " ++ show (numsents naiveStats)
+  display "Part 2, Naive Graphical Model" naiveStats
 
-  -- bayesStats <- step3 tables testlines
-  -- display "Part 3, Bayes net" bayesStats
+  bayesStats <- step3 tables testlines
+  display "Part 3, Bayes net" bayesStats
 
   sampleStats <- step4 tables testlines
   display "Part 4, Sampling" sampleStats
@@ -121,8 +121,8 @@ step3 tables testfile = go testfile emptySent [] emptyStats
               = if null wordAndTag
                 then do
                   tagged <- bayes tables sentence
-                  putStrLn $ "tagged: " ++ show tagged
-                  putStrLn $ "answers: " ++ show (reverse answers)
+                  -- putStrLn $ "tagged: " ++ show tagged
+                  -- putStrLn $ "answers: " ++ show (reverse answers)
                   go rest emptySent [] (newStats stats answers tagged)
                 else do
                   let (word,tag) = parse wordAndTag
@@ -147,11 +147,11 @@ step4 tables testfile = MWC.createSystemRandom >>=
                   go rest (extend sentence word) (tag:answers) stats rand
 
 -- | Expects the list of tags (answers) to be backwards
-bestSample :: [TaggedSent] -> [Tag] -> TaggedSent             
+bestSample :: [TaggedSent] -> [Tag] -> TaggedSent
 bestSample taggedSents revanswers = byWords bySent
-    where answers = reverse answers
+    where answers = reverse revanswers
           checkEqual sent = (getGuesses sent) == answers
           completely = filter checkEqual taggedSents
-          bySent = taggedSents -- if null completely then taggedSents else completely
+          bySent = if null completely then taggedSents else completely
           nRight sent = numRight answers (getGuesses sent)
-          byWords = head -- maximumBy (comparing nRight)
+          byWords = maximumBy (comparing nRight)
